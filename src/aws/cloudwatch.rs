@@ -1,5 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use anyhow::Result;
 use aws_sdk_cloudwatch::types::{
     builders::{MetricBuilder, MetricDataQueryBuilder, MetricStatBuilder},
     Dimension, MetricDataQuery,
@@ -38,7 +39,7 @@ pub fn build_metric(
 }
 
 // get invocations of a lambda for the past 24 hours
-pub async fn metrics(client: &aws_sdk_cloudwatch::Client, arn: &String) -> Vec<Metric> {
+pub async fn metrics(client: &aws_sdk_cloudwatch::Client, arn: &String) -> Result<Vec<Metric>> {
     let period = 60;
 
     let start_time = SystemTime::now()
@@ -67,18 +68,17 @@ pub async fn metrics(client: &aws_sdk_cloudwatch::Client, arn: &String) -> Vec<M
         .start_time(start_time.into())
         .end_time(end_time.into())
         .send()
-        .await
-        .unwrap();
+        .await?;
 
-    let start_timestamp = start_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
-    let end_timestamp = end_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
+    let start_timestamp = start_time.duration_since(UNIX_EPOCH)?.as_secs();
+    let end_timestamp = end_time.duration_since(UNIX_EPOCH)?.as_secs();
 
     let all_timestamps: Vec<u64> = (start_timestamp..=end_timestamp)
         .step_by(period as usize)
         .map(|x| x as u64 / period as u64)
         .collect();
 
-    response
+    let respone: Vec<Result<_>> = response
         .metric_data_results()
         .iter()
         .map(|metric| {
@@ -96,7 +96,7 @@ pub async fn metrics(client: &aws_sdk_cloudwatch::Client, arn: &String) -> Vec<M
             let mut metrics = hashmap.iter().collect::<Vec<_>>();
             metrics.sort_by(|a, b| a.0.cmp(b.0));
 
-            Metric {
+            Ok(Metric {
                 name: metric.id().unwrap().to_string(),
                 values: metrics.iter().map(|(_, v)| **v).collect(),
                 timestamps: metrics
@@ -104,7 +104,9 @@ pub async fn metrics(client: &aws_sdk_cloudwatch::Client, arn: &String) -> Vec<M
                     .map(|(k, _)| (**k * period as u64) as u64)
                     .collect(),
                 metric: metric.label().unwrap().to_string(),
-            }
+            })
         })
-        .collect()
+        .collect();
+
+    Ok(respone.into_iter().collect::<Result<Vec<Metric>>>()?)
 }

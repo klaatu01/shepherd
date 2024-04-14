@@ -1,10 +1,11 @@
 use ratatui::Frame;
 
-use self::{dashboard::DashboardPage, search::SearchPage, splash::SplashPage};
+use self::{dashboard::DashboardPage, error::ErrorPage, search::SearchPage, splash::SplashPage};
 
 use super::component::{Component, ComponentRender};
 
 mod dashboard;
+mod error;
 mod search;
 mod splash;
 
@@ -12,6 +13,7 @@ pub enum Page {
     Splash,
     Search,
     Dashboard,
+    Error,
 }
 
 pub struct AppRouter {
@@ -19,6 +21,7 @@ pub struct AppRouter {
     pub splash: SplashPage,
     pub search: SearchPage,
     pub dashboard: DashboardPage,
+    pub error: ErrorPage,
 }
 
 impl AppRouter {
@@ -27,6 +30,7 @@ impl AppRouter {
             Page::Splash => &mut self.splash,
             Page::Search => &mut self.search,
             Page::Dashboard => &mut self.dashboard,
+            Page::Error => &mut self.error,
         }
     }
 
@@ -35,6 +39,7 @@ impl AppRouter {
             Page::Splash => &self.splash,
             Page::Search => &self.search,
             Page::Dashboard => &self.dashboard,
+            Page::Error => &self.error,
         }
     }
 }
@@ -52,6 +57,7 @@ impl Component for AppRouter {
             splash: SplashPage::new(state, action_tx),
             search: SearchPage::new(state, action_tx),
             dashboard: DashboardPage::new(state, action_tx),
+            error: ErrorPage::new(state, action_tx),
         }
     }
 
@@ -72,11 +78,13 @@ impl Component for AppRouter {
                 crate::core::State::Search(_) => Page::Search,
                 crate::core::State::Searching(_) => Page::Search,
                 crate::core::State::Dashboard(_) => Page::Dashboard,
+                crate::core::State::Error(_) => Page::Error,
                 _ => Page::Splash,
             },
             splash: self.splash.move_with_state(state),
             search: self.search.move_with_state(state),
             dashboard: self.dashboard.move_with_state(state),
+            error: self.error.move_with_state(state),
         }
     }
 }
@@ -87,6 +95,7 @@ impl ComponentRender<()> for AppRouter {
             Page::Splash => self.splash.render(frame, props),
             Page::Search => self.search.render(frame, props),
             Page::Dashboard => self.dashboard.render(frame, props),
+            Page::Error => self.error.render(frame, props),
         }
     }
 }

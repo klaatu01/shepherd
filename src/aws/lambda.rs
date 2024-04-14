@@ -1,3 +1,5 @@
+use anyhow::Result;
+
 use crate::core::{EventSourceMapping, EventSourceMappingState, Lambda};
 use std::{fs, io::Write, path::Path};
 
@@ -34,7 +36,7 @@ fn write_lambdas_to_cache(lambda_functions: &Vec<Lambda>) {
     file.write_all(content.as_bytes()).unwrap();
 }
 
-async fn fetch_lambdas(client: &aws_sdk_lambda::Client) -> Vec<Lambda> {
+async fn fetch_lambdas(client: &aws_sdk_lambda::Client) -> Result<Vec<Lambda>> {
     let mut lambda_functions: Vec<Lambda> = Vec::new();
     let mut next_marker = None;
 
@@ -44,8 +46,7 @@ async fn fetch_lambdas(client: &aws_sdk_lambda::Client) -> Vec<Lambda> {
             .max_items(50)
             .set_marker(next_marker)
             .send()
-            .await
-            .unwrap();
+            .await?;
 
         let functions = response.functions().iter().map(|f| Lambda {
             timeout: f.timeout.unwrap() as i64,
@@ -63,7 +64,7 @@ async fn fetch_lambdas(client: &aws_sdk_lambda::Client) -> Vec<Lambda> {
         }
     }
 
-    lambda_functions
+    Ok(lambda_functions)
 }
 
 pub(crate) fn clear_cache() {
@@ -77,29 +78,28 @@ pub(crate) fn clear_cache() {
     }
 }
 
-pub(crate) async fn lambda_functions(client: &aws_sdk_lambda::Client) -> Vec<Lambda> {
+pub(crate) async fn lambda_functions(client: &aws_sdk_lambda::Client) -> Result<Vec<Lambda>> {
     let cache = read_lambdas_from_cache();
 
     if let Some(lambda_functions) = cache {
-        return lambda_functions;
+        return Ok(lambda_functions);
     }
 
-    let lambda_functions = fetch_lambdas(client).await;
+    let lambda_functions = fetch_lambdas(client).await?;
     write_lambdas_to_cache(&lambda_functions);
 
-    lambda_functions
+    Ok(lambda_functions)
 }
 
 pub(crate) async fn lambda_event_source_mappings(
     client: &aws_sdk_lambda::Client,
     lambda_name: &str,
-) -> Vec<EventSourceMapping> {
+) -> Result<Vec<EventSourceMapping>> {
     let response = client
         .list_event_source_mappings()
         .function_name(lambda_name)
         .send()
-        .await
-        .unwrap();
+        .await?;
 
     let mappings = response.event_source_mappings().iter().flat_map(|m| {
         println!("{:?}", m);
@@ -144,5 +144,5 @@ pub(crate) async fn lambda_event_source_mappings(
         }
     });
 
-    mappings.collect()
+    Ok(mappings.collect())
 }

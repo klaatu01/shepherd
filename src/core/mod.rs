@@ -93,11 +93,16 @@ pub struct DashboardState {
     pub event_source_mappings: Vec<EventSourceMapping>,
 }
 
+pub struct ErrorState {
+    pub error_message: String,
+}
+
 pub enum State {
     Splash,
     Search(SearchState),
     Searching(SearchingState),
     Dashboard(DashboardState),
+    Error(ErrorState),
     Quit,
 }
 
