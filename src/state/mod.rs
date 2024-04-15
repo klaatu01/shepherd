@@ -43,7 +43,7 @@ impl StateManager {
                         Err(e) => {
                             self.state_tx
                                 .send(State::Error(ErrorState {
-                                    error_message: e.to_string(),
+                                    error_message: e.root_cause().to_string(),
                                 }))
                                 .unwrap();
                         }
