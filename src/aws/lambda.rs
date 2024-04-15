@@ -102,7 +102,6 @@ pub(crate) async fn lambda_event_source_mappings(
         .await?;
 
     let mappings = response.event_source_mappings().iter().flat_map(|m| {
-        println!("{:?}", m);
         let event_source = m
             .event_source_arn()
             .unwrap()
