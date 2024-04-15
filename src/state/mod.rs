@@ -1,6 +1,8 @@
+use anyhow::Result;
+
 use crate::{
     aws::AWS,
-    core::{Action, DashboardState, SearchState, SearchingState, State},
+    core::{Action, DashboardState, ErrorState, SearchState, SearchingState, State},
 };
 
 pub struct StateManager {
@@ -31,11 +33,21 @@ impl StateManager {
                     break;
                 }
                 Action::Search => {
-                    self.state_tx
-                        .send(State::Search(SearchState {
-                            lambdas: self.aws.lambda_functions().await,
-                        }))
-                        .unwrap();
+                    let lambdas = self.aws.lambda_functions().await;
+                    match lambdas {
+                        Ok(lambdas) => {
+                            self.state_tx
+                                .send(State::Search(SearchState { lambdas }))
+                                .unwrap();
+                        }
+                        Err(e) => {
+                            self.state_tx
+                                .send(State::Error(ErrorState {
+                                    error_message: e.root_cause().to_string(),
+                                }))
+                                .unwrap();
+                        }
+                    }
                 }
                 Action::PerformSearch { lambda } => {
                     self.state_tx
@@ -45,13 +57,31 @@ impl StateManager {
                         .unwrap();
                     let metrics = self.aws.metrics(&lambda).await;
                     let event_source_mappings = self.aws.event_source_mappings(&lambda).await;
-                    self.state_tx
-                        .send(State::Dashboard(DashboardState {
-                            lambda,
-                            metrics,
-                            event_source_mappings,
-                        }))
-                        .unwrap();
+                    match (metrics, event_source_mappings) {
+                        (Ok(metrics), Ok(event_source_mappings)) => {
+                            self.state_tx
+                                .send(State::Dashboard(DashboardState {
+                                    lambda,
+                                    metrics,
+                                    event_source_mappings,
+                                }))
+                                .unwrap();
+                        }
+                        (Err(e), _) => {
+                            self.state_tx
+                                .send(State::Error(ErrorState {
+                                    error_message: e.to_string(),
+                                }))
+                                .unwrap();
+                        }
+                        (_, Err(e)) => {
+                            self.state_tx
+                                .send(State::Error(ErrorState {
+                                    error_message: e.to_string(),
+                                }))
+                                .unwrap();
+                        }
+                    }
                 }
             }
         }

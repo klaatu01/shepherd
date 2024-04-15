@@ -1,6 +1,7 @@
 use aws_config::BehaviorVersion;
 
 use crate::core::{EventSourceMapping, Lambda, Metric};
+use anyhow::Result;
 
 pub(crate) mod cloudwatch;
 pub(crate) mod event_bridge;
@@ -31,21 +32,22 @@ impl AWS {
         }
     }
 
-    pub async fn lambda_functions(&self) -> Vec<Lambda> {
+    pub async fn lambda_functions(&self) -> Result<Vec<Lambda>> {
         lambda::lambda_functions(&self.lambda_client).await
     }
 
-    pub async fn metrics(&self, lambda: &Lambda) -> Vec<Metric> {
+    pub async fn metrics(&self, lambda: &Lambda) -> Result<Vec<Metric>> {
         cloudwatch::metrics(&self.cw_client, &lambda.name).await
     }
 
-    pub async fn event_source_mappings(&self, lambda: &Lambda) -> Vec<EventSourceMapping> {
+    pub async fn event_source_mappings(&self, lambda: &Lambda) -> Result<Vec<EventSourceMapping>> {
         let eb_event_source_mappings =
-            event_bridge::event_source_mappings(&self.eb_client, &lambda).await;
+            event_bridge::event_source_mappings(&self.eb_client, &lambda).await?;
         let mut event_sources =
-            lambda::lambda_event_source_mappings(&self.lambda_client, &lambda.name).await;
+            lambda::lambda_event_source_mappings(&self.lambda_client, &lambda.name).await?;
         event_sources.extend(eb_event_source_mappings);
-        event_sources
+
+        Ok(event_sources)
     }
 
     pub async fn clear_cache(&self) {
